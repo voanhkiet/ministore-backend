@@ -118,7 +118,7 @@ def save_sale():
 
     db = get_db()
     db.execute(
-        "INSERT INTO sales VALUES (?, ?)",
+        "INSERT INTO sales (date, total) VALUES (?, ?)",
         (datetime.now().strftime("%Y-%m-%d"), total)
     )
     db.commit()
