@@ -7,10 +7,9 @@ app = Flask(__name__)
 
 # ---------------- PATHS ----------------
 APP_NAME = "MiniStore"
-APP_SUPPORT = os.path.expanduser(f"~/Library/Application Support/{APP_NAME}")
-os.makedirs(APP_SUPPORT, exist_ok=True)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "database.db")
 
-DB_PATH = os.path.join(APP_SUPPORT, "database.db")
 
 APP_PIN = "1234"
 
@@ -22,6 +21,7 @@ def get_db():
 
 def init_db():
     db = get_db()
+
     db.execute("""
         CREATE TABLE IF NOT EXISTS products (
             name TEXT PRIMARY KEY,
@@ -29,12 +29,26 @@ def init_db():
             qty INTEGER
         )
     """)
+
     db.execute("""
         CREATE TABLE IF NOT EXISTS sales (
             date TEXT,
             total INTEGER
         )
     """)
+
+    # ✅ seed products if empty
+    count = db.execute("SELECT COUNT(*) FROM products").fetchone()[0]
+    if count == 0:
+        db.executemany(
+            "INSERT INTO products VALUES (?, ?, ?)",
+            [
+                ("bia", 10000, 0),
+                ("nuoc ngot", 8000, 0),
+                ("banh mi", 15000, 0),
+            ]
+        )
+
     db.commit()
     db.close()
 
