@@ -30,20 +30,14 @@ def get_db():
 
 def init_db():
     db = get_db()
-
-    # ⚠️ TEMP: reset sales table
-    db.execute("DROP TABLE IF EXISTS sales")
-
     db.execute("""
-        CREATE TABLE sales (
+        CREATE TABLE IF NOT EXISTS sales (
             date TEXT,
             total INTEGER
         )
     """)
-
     db.commit()
     db.close()
-
 
 init_db()
 
