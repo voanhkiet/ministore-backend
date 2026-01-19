@@ -52,6 +52,24 @@ def init_db():
 
 init_db()
 
+def migrate_sales_table():
+    db = get_db()
+    try:
+        db.execute("DROP TABLE IF EXISTS sales")
+        db.execute("""
+            CREATE TABLE sales (
+                date TEXT,
+                total INTEGER
+            )
+        """)
+        db.commit()
+        print("✅ sales table migrated")
+    finally:
+        db.close()
+
+migrate_sales_table()
+
+
 def require_pin(req):
     return req.headers.get("X-PIN") == APP_PIN
 
