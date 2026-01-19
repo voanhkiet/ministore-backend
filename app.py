@@ -5,13 +5,22 @@ from datetime import datetime
 
 app = Flask(__name__)
 
+
 # ---------------- PATHS ----------------
 APP_NAME = "MiniStore"
+
+
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "database.db")
+DATA_DIR = os.environ.get("DATA_DIR", BASE_DIR)
+
+os.makedirs(DATA_DIR, exist_ok=True)
+DB_PATH = os.path.join(DATA_DIR, "database.db")
 
 
 APP_PIN = "1234"
+
+
 
 # ---------------- DB ----------------
 def get_db():
@@ -156,7 +165,7 @@ def monthly_csv():
     for r in rows:
         csv += f"{r['month']},{r['total']}\n"
 
-    path = os.path.join(APP_SUPPORT, "monthly.csv")
+    path = os.path.join(DATA_DIR, "monthly.csv")
     with open(path, "w") as f:
         f.write(csv)
 
