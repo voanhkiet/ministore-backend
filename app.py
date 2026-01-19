@@ -31,35 +31,19 @@ def get_db():
 def init_db():
     db = get_db()
 
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS products (
-            name TEXT PRIMARY KEY,
-            price INTEGER,
-            qty INTEGER
-        )
-    """)
+    # ⚠️ TEMP: reset sales table
+    db.execute("DROP TABLE IF EXISTS sales")
 
     db.execute("""
-        CREATE TABLE IF NOT EXISTS sales (
+        CREATE TABLE sales (
             date TEXT,
             total INTEGER
         )
     """)
 
-    # ✅ seed products if empty
-    count = db.execute("SELECT COUNT(*) FROM products").fetchone()[0]
-    if count == 0:
-        db.executemany(
-            "INSERT INTO products VALUES (?, ?, ?)",
-            [
-                ("bia", 10000, 0),
-                ("nuoc ngot", 8000, 0),
-                ("banh mi", 15000, 0),
-            ]
-        )
-
     db.commit()
     db.close()
+
 
 init_db()
 
