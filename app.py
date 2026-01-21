@@ -52,22 +52,7 @@ def init_db():
 
 init_db()
 
-def migrate_sales_table():
-    db = get_db()
-    try:
-        db.execute("DROP TABLE IF EXISTS sales")
-        db.execute("""
-            CREATE TABLE sales (
-                date TEXT,
-                total INTEGER
-            )
-        """)
-        db.commit()
-        print("✅ sales table migrated")
-    finally:
-        db.close()
 
-migrate_sales_table()
 
 
 def require_pin(req):
@@ -119,18 +104,52 @@ def save_sale():
     if not require_pin(request):
         return jsonify({"error": "PIN required"}), 403
 
-    total = request.json.get("total", 0)
-    if total == 0:
+    data = request.json or {}
+    total = data.get("total", 0)
+    items = data.get("items", [])
+
+    if total <= 0 or not items:
         return jsonify({"ignored": True})
 
     db = get_db()
-    db.execute(
-        "INSERT INTO sales (date, total) VALUES (?, ?)",
-        (datetime.now().strftime("%Y-%m-%d"), total)
-    )
-    db.commit()
-    db.close()
-    return jsonify({"saved": True})
+
+    try:
+        # 1️⃣ Reduce product stock
+        for item in items:
+            name = item.get("name")
+            qty = int(item.get("qty", 0))
+
+            row = db.execute(
+                "SELECT qty FROM products WHERE name = ?",
+                (name,)
+            ).fetchone()
+
+            if not row:
+                raise Exception(f"Product not found: {name}")
+
+            if row["qty"] < qty:
+                raise Exception(f"Not enough stock for {name}")
+
+            db.execute(
+                "UPDATE products SET qty = qty - ? WHERE name = ?",
+                (qty, name)
+            )
+
+        # 2️⃣ Save sale
+        db.execute(
+            "INSERT INTO sales (date, total) VALUES (?, ?)",
+            (datetime.now().strftime("%Y-%m-%d"), total)
+        )
+
+        db.commit()
+        return jsonify({"saved": True})
+
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": str(e)}), 400
+
+    finally:
+        db.close()
 
 @app.route("/api/sales/daily")
 def daily_sales():
