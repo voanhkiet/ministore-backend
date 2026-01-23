@@ -109,6 +109,7 @@ def save_sale():
     items = data.get("items", [])
 
     if total <= 0 or not items:
+        print("⚠️ Ignored sale: total = 0")
         return jsonify({"ignored": True})
 
     db = get_db()
