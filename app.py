@@ -107,36 +107,38 @@ def save_sale():
     data = request.json or {}
     total = data.get("total", 0)
     items = data.get("items", [])
+    offline = data.get("offline", False)  # 👈 IMPORTANT
 
-    if total <= 0 or not items:
-        print("⚠️ Ignored sale: total = 0")
+    if total <= 0:
+        print("⚠️ Ignored sale: total <= 0")
         return jsonify({"ignored": True})
 
     db = get_db()
 
     try:
-        # 1️⃣ Reduce product stock
-        for item in items:
-            name = item.get("name")
-            qty = int(item.get("qty", 0))
+        # 1️⃣ Reduce stock ONLY if NOT offline
+        if not offline:
+            for item in items:
+                name = item.get("name")
+                qty = int(item.get("qty", 0))
 
-            row = db.execute(
-                "SELECT qty FROM products WHERE name = ?",
-                (name,)
-            ).fetchone()
+                row = db.execute(
+                    "SELECT qty FROM products WHERE name = ?",
+                    (name,)
+                ).fetchone()
 
-            if not row:
-                raise Exception(f"Product not found: {name}")
+                if not row:
+                    raise Exception(f"Product not found: {name}")
 
-            if row["qty"] < qty:
-                raise Exception(f"Not enough stock for {name}")
+                if row["qty"] < qty:
+                    raise Exception(f"Not enough stock for {name}")
 
-            db.execute(
-                "UPDATE products SET qty = qty - ? WHERE name = ?",
-                (qty, name)
-            )
+                db.execute(
+                    "UPDATE products SET qty = qty - ? WHERE name = ?",
+                    (qty, name)
+                )
 
-        # 2️⃣ Save sale
+        # 2️⃣ Save sale (ALWAYS)
         db.execute(
             "INSERT INTO sales (date, total) VALUES (?, ?)",
             (datetime.now().strftime("%Y-%m-%d"), total)
@@ -151,6 +153,7 @@ def save_sale():
 
     finally:
         db.close()
+
 
 @app.route("/api/sales/daily")
 def daily_sales():
