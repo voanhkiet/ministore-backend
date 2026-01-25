@@ -41,6 +41,7 @@ def init_db():
 
     db.execute("""
         CREATE TABLE IF NOT EXISTS sales (
+            sale_id TEXT PRIMARY KEY,
             date TEXT,
             total INTEGER
         )
@@ -105,43 +106,52 @@ def save_sale():
         return jsonify({"error": "PIN required"}), 403
 
     data = request.json or {}
+    sale_id = data.get("sale_id")
     total = data.get("total", 0)
     items = data.get("items", [])
-    offline = data.get("offline", False)  # 👈 IMPORTANT
 
-    if total <= 0:
-        print("⚠️ Ignored sale: total <= 0")
+    if not sale_id:
+        return jsonify({"error": "sale_id required"}), 400
+
+    if total <= 0 or not items:
         return jsonify({"ignored": True})
 
     db = get_db()
 
+    # 🛑 DUPLICATE CHECK
+    exists = db.execute(
+        "SELECT 1 FROM sales WHERE sale_id = ?",
+        (sale_id,)
+    ).fetchone()
+
+    if exists:
+        db.close()
+        print("⚠️ Duplicate sale ignored:", sale_id)
+        return jsonify({"duplicate": True})
+
     try:
-        # 1️⃣ Reduce stock ONLY if NOT offline
-        if not offline:
-            for item in items:
-                name = item.get("name")
-                qty = int(item.get("qty", 0))
+        # Reduce stock
+        for item in items:
+            name = item["name"]
+            qty = int(item["qty"])
 
-                row = db.execute(
-                    "SELECT qty FROM products WHERE name = ?",
-                    (name,)
-                ).fetchone()
+            row = db.execute(
+                "SELECT qty FROM products WHERE name = ?",
+                (name,)
+            ).fetchone()
 
-                if not row:
-                    raise Exception(f"Product not found: {name}")
+            if not row or row["qty"] < qty:
+                raise Exception(f"Not enough stock for {name}")
 
-                if row["qty"] < qty:
-                    raise Exception(f"Not enough stock for {name}")
+            db.execute(
+                "UPDATE products SET qty = qty - ? WHERE name = ?",
+                (qty, name)
+            )
 
-                db.execute(
-                    "UPDATE products SET qty = qty - ? WHERE name = ?",
-                    (qty, name)
-                )
-
-        # 2️⃣ Save sale (ALWAYS)
+        # Save sale
         db.execute(
-            "INSERT INTO sales (date, total) VALUES (?, ?)",
-            (datetime.now().strftime("%Y-%m-%d"), total)
+            "INSERT INTO sales (sale_id, date, total) VALUES (?, ?, ?)",
+            (sale_id, datetime.now().strftime("%Y-%m-%d"), total)
         )
 
         db.commit()
