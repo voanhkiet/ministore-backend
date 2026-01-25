@@ -158,10 +158,8 @@ def save_sale():
                 db.close()
                 return jsonify({"error": f"Product not found: {name}"}), 400
 
-            if row["qty"] < qty:
-                db.close()
-                return jsonify({"error": f"Not enough stock for {name}"}), 400
-
+            
+            # 🔻 Reduce stock (ALLOW NEGATIVE)
             db.execute(
                 "UPDATE products SET qty = qty - ? WHERE name = ?",
                 (qty, name)
