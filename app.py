@@ -51,8 +51,23 @@ def init_db():
     db.close()
 
 
-init_db()
 
+
+def migrate_db():
+    db = get_db()
+
+    # Check existing columns
+    cols = db.execute("PRAGMA table_info(sales)").fetchall()
+    col_names = [c["name"] for c in cols]
+
+    if "sale_id" not in col_names:
+        print("🛠 Migrating DB: adding sale_id column")
+        db.execute("ALTER TABLE sales ADD COLUMN sale_id TEXT")
+
+    db.commit()
+    db.close()
+init_db()
+migrate_db()
 
 
 
