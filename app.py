@@ -105,64 +105,66 @@ def save_sale():
     if not require_pin(request):
         return jsonify({"error": "PIN required"}), 403
 
-    data = request.json or {}
-    sale_id = data.get("sale_id")
-    total = data.get("total", 0)
-    items = data.get("items", [])
-
-    if not sale_id:
-        return jsonify({"error": "sale_id required"}), 400
-
-    if total <= 0 or not items:
-        return jsonify({"ignored": True})
-
-    db = get_db()
-
-    # 🛑 DUPLICATE CHECK
-    exists = db.execute(
-        "SELECT 1 FROM sales WHERE sale_id = ?",
-        (sale_id,)
-    ).fetchone()
-
-    if exists:
-        db.close()
-        print("⚠️ Duplicate sale ignored:", sale_id)
-        return jsonify({"duplicate": True})
-
     try:
-        # Reduce stock
+        data = request.get_json(force=True)
+        sale_id = data.get("sale_id")
+        total = int(data.get("total", 0))
+        items = data.get("items", [])
+
+        if not sale_id:
+            return jsonify({"error": "sale_id required"}), 400
+
+        if total <= 0 or not items:
+            return jsonify({"ignored": True})
+
+        db = get_db()
+
+        # 🛑 DUPLICATE CHECK
+        exists = db.execute(
+            "SELECT 1 FROM sales WHERE sale_id = ?",
+            (sale_id,)
+        ).fetchone()
+
+        if exists:
+            db.close()
+            return jsonify({"duplicate": True})
+
+        # 🔻 Reduce stock
         for item in items:
-            name = item["name"]
-            qty = int(item["qty"])
+            name = item.get("name")
+            qty = int(item.get("qty", 0))
 
             row = db.execute(
                 "SELECT qty FROM products WHERE name = ?",
                 (name,)
             ).fetchone()
 
-            if not row or row["qty"] < qty:
-                raise Exception(f"Not enough stock for {name}")
+            if row is None:
+                db.close()
+                return jsonify({"error": f"Product not found: {name}"}), 400
+
+            if row["qty"] < qty:
+                db.close()
+                return jsonify({"error": f"Not enough stock for {name}"}), 400
 
             db.execute(
                 "UPDATE products SET qty = qty - ? WHERE name = ?",
                 (qty, name)
             )
 
-        # Save sale
+        # 💾 Save sale
         db.execute(
             "INSERT INTO sales (sale_id, date, total) VALUES (?, ?, ?)",
             (sale_id, datetime.now().strftime("%Y-%m-%d"), total)
         )
 
         db.commit()
+        db.close()
         return jsonify({"saved": True})
 
     except Exception as e:
-        db.rollback()
-        return jsonify({"error": str(e)}), 400
-
-    finally:
-        db.close()
+        print("🔥 SALE ERROR:", e)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/sales/daily")
