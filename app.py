@@ -19,6 +19,9 @@ DB_PATH = os.path.join(DATA_DIR, "database.db")
 
 
 APP_PIN = "1234"
+if os.environ.get("RESET_DB") == "1":
+    if os.path.exists(DB_PATH):
+        os.remove(DB_PATH)
 
 
 
@@ -45,6 +48,12 @@ def init_db():
             date TEXT,
             total INTEGER
         )
+    """)
+ 
+  # 🔒 schema version
+    db.execute("""
+        INSERT OR IGNORE INTO meta (key, value)
+        VALUES ('schema_version', '1')
     """)
 
     db.commit()
@@ -122,10 +131,12 @@ def save_sale():
 
     try:
         data = request.get_json(force=True)
+
         sale_id = data.get("sale_id")
         total = int(data.get("total", 0))
         items = data.get("items", [])
 
+        # 1️⃣ VALIDATION
         if not sale_id:
             return jsonify({"error": "sale_id required"}), 400
 
@@ -134,7 +145,7 @@ def save_sale():
 
         db = get_db()
 
-        # 🛑 DUPLICATE CHECK
+        # 2️⃣ 🛑 DUPLICATE CHECK (ADD HERE)
         exists = db.execute(
             "SELECT 1 FROM sales WHERE sale_id = ?",
             (sale_id,)
@@ -142,9 +153,10 @@ def save_sale():
 
         if exists:
             db.close()
+            print("⚠️ Duplicate sale ignored:", sale_id)
             return jsonify({"duplicate": True})
 
-        # 🔻 Reduce stock
+        # 3️⃣ REDUCE STOCK
         for item in items:
             name = item.get("name")
             qty = int(item.get("qty", 0))
@@ -158,14 +170,16 @@ def save_sale():
                 db.close()
                 return jsonify({"error": f"Product not found: {name}"}), 400
 
-            
-            # 🔻 Reduce stock (ALLOW NEGATIVE)
+            if row["qty"] < qty:
+                db.close()
+                return jsonify({"error": f"Not enough stock for {name}"}), 400
+
             db.execute(
                 "UPDATE products SET qty = qty - ? WHERE name = ?",
                 (qty, name)
             )
 
-        # 💾 Save sale
+        # 4️⃣ SAVE SALE
         db.execute(
             "INSERT INTO sales (sale_id, date, total) VALUES (?, ?, ?)",
             (sale_id, datetime.now().strftime("%Y-%m-%d"), total)
@@ -173,11 +187,13 @@ def save_sale():
 
         db.commit()
         db.close()
+
         return jsonify({"saved": True})
 
     except Exception as e:
         print("🔥 SALE ERROR:", e)
         return jsonify({"error": str(e)}), 500
+
 
 
 @app.route("/api/sales/daily")
