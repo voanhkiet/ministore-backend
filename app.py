@@ -34,6 +34,20 @@ def get_db():
 def init_db():
     db = get_db()
 
+    # 🔹 META TABLE (MUST COME FIRST)
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS meta (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
+
+    db.execute("""
+        INSERT OR IGNORE INTO meta (key, value)
+        VALUES ('schema_version', '1')
+    """)
+
+    # 🔹 PRODUCTS
     db.execute("""
         CREATE TABLE IF NOT EXISTS products (
             name TEXT PRIMARY KEY,
@@ -42,6 +56,7 @@ def init_db():
         )
     """)
 
+    # 🔹 SALES
     db.execute("""
         CREATE TABLE IF NOT EXISTS sales (
             sale_id TEXT PRIMARY KEY,
@@ -49,15 +64,10 @@ def init_db():
             total INTEGER
         )
     """)
- 
-  # 🔒 schema version
-    db.execute("""
-        INSERT OR IGNORE INTO meta (key, value)
-        VALUES ('schema_version', '1')
-    """)
 
     db.commit()
     db.close()
+
 
 
 
